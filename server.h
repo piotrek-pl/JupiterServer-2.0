@@ -11,22 +11,25 @@
 #include <QSqlQuery>
 #include "user.h"
 #include "message.h"
+#include "databaseconnectionmanager.h"
 
 class Server : public QObject
 {
     Q_OBJECT
 private:
     QTcpServer *chatServer;
-    QSqlDatabase database;
+    static QSqlDatabase database;
     QList<User*> connectedUsers;
     //QList<QTcpSocket*> *allClients;
     QMap<QTcpSocket*, quint32> socketAndIdMap;
+
+    DatabaseConnectionManager *databaseConnectionManager;
 
 
     enum ipAddressFormat { IPV4 = 7 };
     enum ID { NO_ID = 0 };
 
-    bool connectToDatabase();
+
     QSqlDatabase getDatabase() { return database; }
     //void sendMessageToClients(QString message);
     void processTcpStream(QDataStream& tcpstream);
@@ -42,6 +45,7 @@ public:
     explicit Server(QObject *parent = nullptr);
     ~Server();
     void startServer();
+    static bool connectToDatabase();
 
 private slots:
     void newClientConnection();
@@ -49,6 +53,9 @@ private slots:
     //void socketConnected();
     void socketReadyRead();
     void socketStateChanged(QAbstractSocket::SocketState state);
+
+    void handleDatabaseConnectionLost();
+    void handleDatabaseConnectionRestored();
 };
 
 #endif // SERVER_H

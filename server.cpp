@@ -1,20 +1,47 @@
 #include "server.h"
 
+QSqlDatabase Server::database;
 
 Server::Server(QObject *parent)
     : QObject{parent}
 {
+    databaseConnectionManager = new DatabaseConnectionManager();
+    database = QSqlDatabase::addDatabase("QMYSQL");
+
+    QObject::connect(databaseConnectionManager, &DatabaseConnectionManager::databaseConnectionLost,
+                     this, &Server::handleDatabaseConnectionLost);
+
+    QObject::connect(databaseConnectionManager, &DatabaseConnectionManager::databaseConnectionRestored,
+                     this, &Server::handleDatabaseConnectionRestored);
 
 }
 
 Server::~Server()
+{
+    chatServer->close();
+    qDebug() << "chatServer->close()";
+}
+
+void Server::handleDatabaseConnectionLost()
+{
+    if (chatServer->listen(QHostAddress::Any, 1234))
+    {
+        qDebug() << "Server has started. Listening to port 1234.";
+    }
+    else
+    {
+        qDebug() << "Server failed to start. Error: " + chatServer->errorString();
+    }
+}
+
+void Server::handleDatabaseConnectionRestored()
 {
 
 }
 
 bool Server::connectToDatabase()
 {
-    database = QSqlDatabase::addDatabase("QMYSQL");
+    //database = QSqlDatabase::addDatabase("QMYSQL");
     database.setHostName("77.237.31.25");
     database.setPort(3306);
     database.setDatabaseName("jupiter");
@@ -35,23 +62,43 @@ void Server::startServer()
     {
         qDebug() << "Connected to database!";
 
-        chatServer = new QTcpServer();
-        chatServer->setMaxPendingConnections(10);
-        connect(chatServer, &QTcpServer::newConnection, this, &Server::newClientConnection);
+        //chatServer = new QTcpServer();
+        //chatServer->setMaxPendingConnections(10);
+        //connect(chatServer, &QTcpServer::newConnection, this, &Server::newClientConnection);
 
-        if (chatServer->listen(QHostAddress::Any, 1234))
+        /*if (chatServer->listen(QHostAddress::Any, 1234))
         {
             qDebug() << "Server has started. Listening to port 1234.";
         }
         else
         {
             qDebug() << "Server failed to start. Error: " + chatServer->errorString();
-        }
+        }*/
     }
     else
     {
         qDebug() << "Failed to connect to database.";
+        databaseConnectionManager->reconnectDatabase(database);
+
+        /*if (chatServer->listen(QHostAddress::Any, 1234))
+        {
+            qDebug() << "Server has started. Listening to port 1234.";
+        }
+        else
+        {
+            qDebug() << "Server failed to start. Error: " + chatServer->errorString();
+        }*/
     }
+
+    if (chatServer->listen(QHostAddress::Any, 1234))
+    {
+        qDebug() << "Server has started. Listening to port 1234.";
+    }
+    else
+    {
+        qDebug() << "Server failed to start. Error: " + chatServer->errorString();
+    }
+
 
 }
 
@@ -91,8 +138,15 @@ void Server::socketDisconnected()
 
 void Server::setUnavailableUserInUsersTable(quint32 senderId)
 {
+    if (!databaseConnectionManager->checkConnection(database))
+    {
+        databaseConnectionManager->reconnectDatabase(database);
+    }
+
+
     QString sqlCommand = "UPDATE users SET available = 0 WHERE id = " + QString::number(senderId);
     QSqlQuery query(database);
+
     if (query.exec(sqlCommand))
     {
         if (query.numRowsAffected() == 1)
@@ -154,6 +208,11 @@ void Server::setNewMessageState(quint32 senderId, quint32 receiverId)
 {
     qDebug() << "Jestem w setNewMessageState(quint32 senderId, quint32 receiverId)";
 
+    if (!databaseConnectionManager->checkConnection(database))
+    {
+        databaseConnectionManager->reconnectDatabase(database);
+    }
+
     QString updateNewMessageStateSqlCommand = QString("UPDATE %1_friends SET %1_friends.is_new_message = 1 "
                                               "WHERE %1_friends.id = %2")
                                               .arg(receiverId).arg(senderId);
@@ -206,6 +265,11 @@ void Server::setNewMessageState(quint32 senderId, quint32 receiverId)
 
 void Server::writeMessageToDatabase(Message message)
 {
+    if (!databaseConnectionManager->checkConnection(database))
+    {
+        databaseConnectionManager->reconnectDatabase(database);
+    }
+
     qDebug() << "Jestem w metodzie writeMessageToDatabase(Message message)";
     /*QString senderTableSqlCommand = "INSERT INTO " + QString::number(message.getSenderId()) + "_chat_" + QString::number(message.getReceiverId())
                         + " (message) " + "VALUES " + "('" + message.getContent() + "')";*/
@@ -221,6 +285,11 @@ void Server::writeMessageToDatabase(Message message)
 
 void Server::writeMessageToSpecificTable(QString sqlCommand)
 {
+    if (!databaseConnectionManager->checkConnection(database))
+    {
+        databaseConnectionManager->reconnectDatabase(database);
+    }
+
     QSqlQuery query(database);
     qDebug() << "writeMessage...";
     if (query.exec(sqlCommand))
@@ -238,6 +307,11 @@ void Server::writeMessageToSpecificTable(QString sqlCommand)
 
 void Server::setAvailableUserInUsersTable(quint32 senderId)
 {
+    if (!databaseConnectionManager->checkConnection(database))
+    {
+        databaseConnectionManager->reconnectDatabase(database);
+    }
+
     QString sqlCommand = "UPDATE users SET available = 1 WHERE id = " + QString::number(senderId);
     QSqlQuery query(database);
     if (query.exec(sqlCommand))
@@ -278,3 +352,5 @@ void Server::socketStateChanged(QAbstractSocket::SocketState state)
 
     qDebug() << "Socket state changed (" + socketIpAddress.mid(IPV4) + ":" + QString::number(port) + "): " + desc;
 }
+
+

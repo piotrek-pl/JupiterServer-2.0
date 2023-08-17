@@ -9,6 +9,7 @@ CONFIG -= app_bundle
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+        databaseconnectionmanager.cpp \
         main.cpp \
         message.cpp \
         server.cpp \
@@ -20,6 +21,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
+    databaseconnectionmanager.h \
     message.h \
     server.h \
     user.h
